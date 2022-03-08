@@ -26,7 +26,8 @@ import { mergeFile } from './mergeFile.js'
  * @param {string} [args.baseName='base'] - The name to use in conflicted files (in diff3 format) for the base hunks
  * @param {string} [args.theirName='theirs'] - The name to use in conflicted files for their hunks
  * @param {boolean} [args.dryRun=false]
- *
+ * @param {function} [args.asyncMergeConflictCallback] - The function to allow for async user resolution of conflicts
+ * @param {function} [args.iterateOverride] - overwrite the default iterate functionality for mergeTree
  * @returns {Promise<string>} - The SHA-1 object id of the merged tree
  *
  */
@@ -42,6 +43,8 @@ export async function mergeTree({
   baseName = 'base',
   theirName = 'theirs',
   dryRun = false,
+  asyncMergeConflictCallback,
+  iterateOverride,
 }) {
   const ourTree = TREE({ ref: ourOid })
   const baseTree = TREE({ ref: baseOid })
@@ -52,6 +55,7 @@ export async function mergeTree({
     cache,
     dir,
     gitdir,
+    iterate: iterateOverride,
     trees: [ourTree, baseTree, theirTree],
     map: async function(filepath, [ours, base, theirs]) {
       const path = basename(filepath)
@@ -107,9 +111,13 @@ export async function mergeTree({
               ourName,
               baseName,
               theirName,
+              asyncMergeConflictCallback,
             })
           }
           // all other types of conflicts fail
+          throw new MergeNotSupportedError()
+        }
+        default: {
           throw new MergeNotSupportedError()
         }
       }
@@ -183,6 +191,7 @@ async function modified(entry, base) {
  * @param {string} [args.format]
  * @param {number} [args.markerSize]
  * @param {boolean} [args.dryRun = false]
+ * @param {function} [args.asyncMergeConflictCallback]
  *
  */
 async function mergeBlobs({
@@ -198,6 +207,7 @@ async function mergeBlobs({
   format,
   markerSize,
   dryRun,
+  asyncMergeConflictCallback,
 }) {
   const type = 'blob'
   // Compute the new mode.
@@ -228,15 +238,21 @@ async function mergeBlobs({
     format,
     markerSize,
   })
+  let awaitedMergedText = mergedText
   if (!cleanMerge) {
     // all other types of conflicts fail
-    throw new MergeNotSupportedError()
+    try {
+      awaitedMergedText = await asyncMergeConflictCallback(mergedText, base._fullpath)
+    } catch (error) {
+      throw new MergeNotSupportedError()
+    }
   }
+
   const oid = await writeObject({
     fs,
     gitdir,
     type: 'blob',
-    object: Buffer.from(mergedText, 'utf8'),
+    object: Buffer.from(awaitedMergedText, 'utf8'),
     dryRun,
   })
   return { mode, path, oid, type }

@@ -9,6 +9,9 @@ import { join } from '../utils/join.js'
 import { normalizeAuthorObject } from '../utils/normalizeAuthorObject.js'
 import { normalizeCommitterObject } from '../utils/normalizeCommitterObject.js'
 
+const DummyAsyncCallback = async function(file) {
+  throw new Error('Intentional Merge Error')
+}
 /**
  *
  * @typedef {Object} MergeResult - Returns an object with a schema like this:
@@ -55,7 +58,8 @@ import { normalizeCommitterObject } from '../utils/normalizeCommitterObject.js'
  * @param {number} [args.committer.timezoneOffset] - Set the committer timezone offset field. This is the difference, in minutes, from the current timezone to UTC. Default is `(new Date()).getTimezoneOffset()`.
  * @param {string} [args.signingKey] - passed to [commit](commit.md) when creating a merge commit
  * @param {object} [args.cache] - a [cache](cache.md) object
- *
+ * @param {function} [args.asyncMergeConflictCallback] - merge conflict resolution callback
+ * @param {function} [args.iterateOverride] - over-write the default walker iterate function
  * @returns {Promise<MergeResult>} Resolves to a description of the merge operation
  * @see MergeResult
  *
@@ -84,6 +88,8 @@ export async function merge({
   committer: _committer,
   signingKey,
   cache = {},
+  asyncMergeConflictCallback = DummyAsyncCallback,
+  iterateOverride,
 }) {
   try {
     assertParameter('fs', _fs)
@@ -119,6 +125,8 @@ export async function merge({
       committer,
       signingKey,
       onSign,
+      asyncMergeConflictCallback,
+      iterateOverride,
     })
   } catch (err) {
     err.caller = 'git.merge'

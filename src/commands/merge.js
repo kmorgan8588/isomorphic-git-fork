@@ -45,6 +45,8 @@ import { mergeTree } from '../utils/mergeTree.js'
  * @param {number} args.committer.timezoneOffset
  * @param {string} [args.signingKey]
  * @param {SignCallback} [args.onSign] - a PGP signing implementation
+ * @param {function} [args.asyncMergeConflictCallback]
+ * @param {function} [args.iterateOverride]
  *
  * @returns {Promise<MergeResult>} Resolves to a description of the merge operation
  *
@@ -63,6 +65,8 @@ export async function _merge({
   committer,
   signingKey,
   onSign,
+  asyncMergeConflictCallback,
+  iterateOverride,
 }) {
   if (ours === undefined) {
     ours = await _currentBranch({ fs, gitdir, fullname: true })
@@ -130,6 +134,8 @@ export async function _merge({
       baseName: 'base',
       theirName: theirs,
       dryRun,
+      asyncMergeConflictCallback,
+      iterateOverride,
     })
     if (!message) {
       message = `Merge branch '${abbreviateRef(theirs)}' into ${abbreviateRef(
